@@ -18,6 +18,21 @@ DuplicateFinder.findDuplicates(stream, expectedDistinctElements, falsePositiveRa
 
 Trade-off: Bloom filter false positives cause extra disk reads, but never miss a real duplicate.
 
+```mermaid
+flowchart TD
+    A["Next element from Stream"] --> B{"Bloom filter: mightContain?"}
+    B -- No --> C["Add to Bloom + DiskMap\n(first occurrence)"]
+    C --> A
+    B -- Yes --> D{"DiskMap lookup"}
+    D -- "Not found\n(Bloom false positive)" --> E["Add to Bloom + DiskMap"]
+    E --> A
+    D -- "Found, not yet flagged" --> F["Mark as duplicate\nAppend to duplicates file"]
+    F --> A
+    D -- "Already flagged" --> A
+    A -- "Stream exhausted" --> G["Sort duplicates by\nfirst-occurrence position"]
+    G --> H["Return sorted Stream"]
+```
+
 ## Requirements
 
 - JDK 17+
