@@ -5,7 +5,6 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 /**
  * Utility class for detecting duplicate elements in a {@link Stream}.
@@ -111,32 +110,38 @@ public final class DuplicateFinder {
         BloomFilter bloom = new BloomFilter(expectedInsertions, falsePositiveRate);
 
         try {
-            DiskBackedMap<T, Boolean> seenOnDisk = new DiskBackedMap<>();
+            // Value = first-occurrence position (negative means already flagged as
+            // duplicate)
+            DiskBackedMap<T, Long> seenOnDisk = new DiskBackedMap<>();
             Path duplicatesFile = Files.createTempFile("duplicates-", ".dat");
 
-            // Pass 1: scan all elements, record duplicates to disk
+            // Pass 1: scan all elements, record duplicates with their first-seen position
+            long[] position = { 0 };
             int[] duplicateCount = { 0 };
+
             stream.forEach(element -> {
                 Objects.requireNonNull(element, "Stream elements must not be null");
+                long pos = position[0]++;
                 try {
                     if (bloom.mightContain(element)) {
                         // Bloom says maybe-seen — confirm via disk
-                        Boolean alreadySeen = seenOnDisk.get(element);
-                        if (alreadySeen == null) {
+                        Long storedPos = seenOnDisk.get(element);
+                        if (storedPos == null) {
                             // False positive from Bloom — first real occurrence
-                            seenOnDisk.put(element, Boolean.FALSE);
+                            seenOnDisk.put(element, pos);
                             bloom.put(element);
-                        } else if (!alreadySeen) {
+                        } else if (storedPos >= 0) {
                             // Second real occurrence — it's a duplicate
-                            seenOnDisk.put(element, Boolean.TRUE);
-                            appendToDuplicatesFile(duplicatesFile, element);
+                            // Negate position to mark as "already recorded"
+                            seenOnDisk.put(element, -storedPos - 1);
+                            appendToDuplicatesFile(duplicatesFile, element, storedPos);
                             duplicateCount[0]++;
                         }
-                        // else: already recorded as duplicate, skip
+                        // else: storedPos < 0 → already recorded as duplicate, skip
                     } else {
                         // Definitely not seen — add to Bloom and disk
                         bloom.put(element);
-                        seenOnDisk.put(element, Boolean.FALSE);
+                        seenOnDisk.put(element, pos);
                     }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
@@ -146,13 +151,13 @@ public final class DuplicateFinder {
             // Clean up the disk map — no longer needed
             seenOnDisk.close();
 
-            // Pass 2: stream duplicates back from the temp file
+            // Pass 2: read duplicates, sort by first-occurrence position, stream back
             if (duplicateCount[0] == 0) {
                 Files.deleteIfExists(duplicatesFile);
                 return Stream.empty();
             }
 
-            return streamFromDuplicatesFile(duplicatesFile, duplicateCount[0]);
+            return readAndSortDuplicates(duplicatesFile, duplicateCount[0]);
 
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -161,8 +166,13 @@ public final class DuplicateFinder {
 
     // --- disk I/O helpers ---
 
+    /** Serializable wrapper for (position, element) stored on disk. */
+    private record PositionedElement<T extends Serializable>(long position, T element)
+            implements Serializable {
+    }
+
     private static <T extends Serializable> void appendToDuplicatesFile(
-            Path file, T element) throws IOException {
+            Path file, T element, long position) throws IOException {
 
         try (ObjectOutputStream oos = (Files.size(file) == 0)
                 ? new ObjectOutputStream(new BufferedOutputStream(
@@ -170,72 +180,31 @@ public final class DuplicateFinder {
                 : new AppendableObjectOutputStream(new BufferedOutputStream(
                         Files.newOutputStream(file,
                                 java.nio.file.StandardOpenOption.APPEND)))) {
-            oos.writeObject(element);
+            oos.writeObject(new PositionedElement<>(position, element));
         }
     }
 
     @SuppressWarnings("unchecked")
-    private static <T extends Serializable> Stream<T> streamFromDuplicatesFile(
+    private static <T extends Serializable> Stream<T> readAndSortDuplicates(
             Path file, int count) {
-
-        Iterator<T> iterator = new Iterator<>() {
-            private ObjectInputStream ois;
-            private int remaining = count;
-
-            {
-                try {
-                    ois = new ObjectInputStream(
-                            new BufferedInputStream(Files.newInputStream(file)));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        try {
+            List<PositionedElement<T>> entries = new ArrayList<>(count);
+            try (ObjectInputStream ois = new ObjectInputStream(
+                    new BufferedInputStream(Files.newInputStream(file)))) {
+                for (int i = 0; i < count; i++) {
+                    entries.add((PositionedElement<T>) ois.readObject());
                 }
             }
+            Files.deleteIfExists(file);
 
-            @Override
-            public boolean hasNext() {
-                if (remaining > 0) {
-                    return true;
-                }
-                // Clean up when exhausted
-                cleanup();
-                return false;
-            }
+            entries.sort(Comparator.comparingLong(PositionedElement::position));
+            return entries.stream().map(PositionedElement::element);
 
-            @Override
-            public T next() {
-                if (remaining <= 0) {
-                    throw new NoSuchElementException();
-                }
-                try {
-                    remaining--;
-                    T value = (T) ois.readObject();
-                    if (remaining == 0) {
-                        cleanup();
-                    }
-                    return value;
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                } catch (ClassNotFoundException e) {
-                    throw new RuntimeException("Failed to deserialize element", e);
-                }
-            }
-
-            private void cleanup() {
-                try {
-                    if (ois != null) {
-                        ois.close();
-                        ois = null;
-                    }
-                    Files.deleteIfExists(file);
-                } catch (IOException e) {
-                    // Best-effort cleanup
-                }
-            }
-        };
-
-        return StreamSupport.stream(
-                Spliterators.spliteratorUnknownSize(iterator, Spliterator.ORDERED),
-                false);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException("Failed to deserialize duplicates", e);
+        }
     }
 
     /**
