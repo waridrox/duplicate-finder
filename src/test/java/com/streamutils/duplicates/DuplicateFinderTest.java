@@ -1,14 +1,14 @@
 package com.streamutils.duplicates;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 import java.io.Serializable;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 class DuplicateFinderTest {
 
@@ -96,8 +96,8 @@ class DuplicateFinderTest {
                 Stream.iterate(0, i -> i + 1).limit(5000));
         List<Integer> result = DuplicateFinder.findDuplicates(input).toList();
         assertEquals(5000, result.size());
-        assertEquals(0, result.getFirst());
-        assertEquals(4999, result.getLast());
+        assertEquals(0, result.get(0));
+        assertEquals(4999, result.get(result.size() - 1));
     }
 
     /** Simple serializable pair for testing custom objects. */

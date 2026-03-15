@@ -13,13 +13,13 @@ import java.util.stream.Stream;
  * {@link Object#equals(Object)} and {@link Object#hashCode()} implementations,
  * since duplicate detection relies on equality semantics.
  *
- * <p>This class is stateless and thread-safe — all methods are static and
+ * <p>This class is stateless and thread-safe - all methods are static and
  * create no shared mutable state.
  */
 public final class DuplicateFinder {
 
     private DuplicateFinder() {
-        // Utility class — not instantiable.
+        // Utility class - not instantiable.
     }
 
     /**
@@ -40,7 +40,7 @@ public final class DuplicateFinder {
      * </ul>
      *
      * @param stream the input stream to scan for duplicates
-     * @param <T>    element type — must be {@link Serializable} with proper
+     * @param <T>    element type - must be {@link Serializable} with proper
      *               {@code equals}/{@code hashCode}
      * @return a new stream containing only the duplicated elements, in first-occurrence order
      * @throws NullPointerException if {@code stream} is null or contains null elements
