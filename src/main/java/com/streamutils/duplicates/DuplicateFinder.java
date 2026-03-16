@@ -107,8 +107,9 @@ public final class DuplicateFinder {
             throw new IllegalArgumentException("maxElementsInMemory must be > 0");
         }
 
+        Path workDir = null;
         try {
-            Path workDir = Files.createTempDirectory("dupfinder-");
+            workDir = Files.createTempDirectory("dupfinder-");
 
             // Phase 1: partition stream to disk
             long[] partCounts = partitionStream(stream, workDir);
@@ -131,6 +132,12 @@ public final class DuplicateFinder {
             return streamFromFile(sortedFile, workDir);
 
         } catch (IOException e) {
+            if (workDir != null) {
+                try {
+                    deleteRecursively(workDir);
+                } catch (IOException ignored) {
+                }
+            }
             throw new UncheckedIOException(e);
         }
     }
