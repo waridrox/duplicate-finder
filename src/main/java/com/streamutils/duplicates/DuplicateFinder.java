@@ -28,7 +28,7 @@ import java.util.stream.StreamSupport;
  */
 public final class DuplicateFinder {
 
-    private static final int NUM_PARTITIONS = 16;
+    private static final int NUM_PARTITIONS = 1024;
     private static final int MAX_PARTITION_DEPTH = 8;
 
     private DuplicateFinder() {
