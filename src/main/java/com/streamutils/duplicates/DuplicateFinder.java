@@ -240,27 +240,21 @@ public final class DuplicateFinder {
     private static <T extends Serializable> int processInMemory(
             Path file, ObjectOutputStream dupOut) throws IOException {
 
-        List<IndexedElement<T>> entries = new ArrayList<>();
+        Map<T, Long> firstSeen = new HashMap<>();
+        Set<T> duplicates = new LinkedHashSet<>();
+
         try (ObjectInputStream ois = new ObjectInputStream(
                 new BufferedInputStream(Files.newInputStream(file)))) {
             IndexedElement<T> entry;
             while ((entry = readNext(ois)) != null) {
-                entries.add(entry);
+                T elem = entry.element();
+                Long first = firstSeen.putIfAbsent(elem, entry.index());
+                if (first != null) {
+                    duplicates.add(elem);
+                }
             }
         }
         Files.deleteIfExists(file);
-
-        Map<T, Long> firstSeen = new HashMap<>();
-        Set<T> duplicates = new LinkedHashSet<>();
-
-        for (var entry : entries) {
-            T elem = entry.element();
-            if (firstSeen.containsKey(elem)) {
-                duplicates.add(elem);
-            } else {
-                firstSeen.put(elem, entry.index());
-            }
-        }
 
         for (T dup : duplicates) {
             dupOut.writeObject(new IndexedElement<>(firstSeen.get(dup), dup));
