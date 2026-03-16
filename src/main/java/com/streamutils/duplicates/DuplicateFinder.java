@@ -1,9 +1,26 @@
 package com.streamutils.duplicates;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
+import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.Comparator;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
+import java.util.Map;
+import java.util.NoSuchElementException;
+import java.util.Objects;
+import java.util.Set;
+import java.util.Spliterator;
+import java.util.Spliterators;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
 
@@ -21,8 +38,8 @@ import java.util.stream.StreamSupport;
  * <p>
  * Provides two strategies:
  * <ul>
- * <li>{@link #findDuplicates(Stream)} — in-memory, for bounded streams.</li>
- * <li>{@link #findDuplicates(Stream, long)} — disk-backed with recursive
+ * <li>{@link #findDuplicates(Stream)}, in-memory, for bounded streams.</li>
+ * <li>{@link #findDuplicates(Stream, long)}, disk-backed with recursive
  * hash partitioning and external sorting, for unbounded streams.</li>
  * </ul>
  */

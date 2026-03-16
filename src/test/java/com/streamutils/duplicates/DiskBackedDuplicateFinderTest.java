@@ -1,14 +1,15 @@
 package com.streamutils.duplicates;
 
-import org.junit.jupiter.api.DisplayName;
-import org.junit.jupiter.api.Test;
-
 import java.io.Serializable;
 import java.util.List;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.junit.jupiter.api.Assertions.*;
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.Test;
 
 /**
  * Tests for the disk-backed
@@ -87,14 +88,14 @@ class DiskBackedDuplicateFinderTest {
     @Test
     @DisplayName("handles 10k elements with known duplicates")
     void largeInput() {
-        // 0..4999 twice — all are duplicates
+        // 0..4999 twice, all are duplicates
         Stream<Integer> input = Stream.concat(
                 IntStream.range(0, 5_000).boxed(),
                 IntStream.range(0, 5_000).boxed());
         List<Integer> result = DuplicateFinder.findDuplicates(input, MAX_IN_MEMORY).toList();
         assertEquals(5_000, result.size());
-        assertEquals(0, result.getFirst());
-        assertEquals(4_999, result.getLast());
+        assertEquals(0, result.get(0));
+        assertEquals(4_999, result.get(result.size() - 1));
     }
 
     @Test
@@ -106,8 +107,8 @@ class DiskBackedDuplicateFinderTest {
                 IntStream.range(0, 500).boxed());
         List<Integer> result = DuplicateFinder.findDuplicates(input, 50).toList();
         assertEquals(500, result.size());
-        assertEquals(0, result.getFirst());
-        assertEquals(499, result.getLast());
+        assertEquals(0, result.get(0));
+        assertEquals(499, result.get(result.size() - 1));
     }
 
     @Test
@@ -137,7 +138,7 @@ class DiskBackedDuplicateFinderTest {
     }
 
     @Test
-    @DisplayName("large all-distinct input with tiny memory — no duplicates")
+    @DisplayName("large all-distinct input with tiny memory, no duplicates")
     void largeDistinctTinyMemory() {
         var input = IntStream.range(0, 10_000).mapToObj(i -> "elem-" + i);
         var result = DuplicateFinder.findDuplicates(input, 100).toList();

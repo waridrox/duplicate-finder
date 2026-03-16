@@ -1,9 +1,18 @@
 package com.streamutils.duplicates;
 
-import java.io.*;
+import java.io.BufferedInputStream;
+import java.io.BufferedOutputStream;
+import java.io.EOFException;
+import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
+import java.io.Serializable;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.List;
+import java.util.PriorityQueue;
 
 /**
  * External merge sort for {@link Serializable} and {@link Comparable} records
@@ -35,7 +44,7 @@ final class ExternalSorter {
         if (runs.isEmpty())
             return inputFile;
         if (runs.size() == 1)
-            return runs.getFirst();
+            return runs.get(0);
 
         return mergeRuns(runs, workDir);
     }
