@@ -11,7 +11,8 @@ import java.util.stream.Stream;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Tests for the disk-backed {@link DuplicateFinder#findDuplicates(Stream, long)}.
+ * Tests for the disk-backed
+ * {@link DuplicateFinder#findDuplicates(Stream, long)}.
  */
 class DiskBackedDuplicateFinderTest {
 
@@ -74,7 +75,8 @@ class DiskBackedDuplicateFinderTest {
     @Test
     @DisplayName("works with custom Serializable objects")
     void customObjects() {
-        record Pair(String key, int value) implements Serializable {}
+        record Pair(String key, int value) implements Serializable {
+        }
         Stream<Pair> input = Stream.of(
                 new Pair("a", 1), new Pair("b", 2),
                 new Pair("a", 1), new Pair("c", 3));
@@ -113,7 +115,32 @@ class DiskBackedDuplicateFinderTest {
     void invalidMemoryBudget() {
         assertThrows(IllegalArgumentException.class,
                 () -> DuplicateFinder.findDuplicates(Stream.of("a"), 0));
+
         assertThrows(IllegalArgumentException.class,
                 () -> DuplicateFinder.findDuplicates(Stream.of("a"), -1));
+    }
+
+    @Test
+    @DisplayName("given example with very small memory budget (5)")
+    void givenExampleTinyBudget() {
+        var input = Stream.of("b", "a", "c", "c", "e", "a", "c", "d", "c", "d");
+        var result = DuplicateFinder.findDuplicates(input, 5).toList();
+        assertEquals(List.of("a", "c", "d"), result);
+    }
+
+    @Test
+    @DisplayName("all duplicates: [a,a,b,b,b] → [a,b]")
+    void allDuplicates() {
+        var input = Stream.of("a", "a", "b", "b", "b");
+        var result = DuplicateFinder.findDuplicates(input, MAX_IN_MEMORY).toList();
+        assertEquals(List.of("a", "b"), result);
+    }
+
+    @Test
+    @DisplayName("large all-distinct input with tiny memory — no duplicates")
+    void largeDistinctTinyMemory() {
+        var input = IntStream.range(0, 10_000).mapToObj(i -> "elem-" + i);
+        var result = DuplicateFinder.findDuplicates(input, 100).toList();
+        assertTrue(result.isEmpty());
     }
 }
