@@ -279,7 +279,7 @@ public final class DuplicateFinder {
                 new BufferedInputStream(Files.newInputStream(sortedFile)));
 
         Iterator<T> iterator = new Iterator<>() {
-            private IndexedElement<T> next = readNext(ois);
+            private IndexedElement<T> next = safeReadNext(ois);
 
             @Override
             public boolean hasNext() {
@@ -291,10 +291,18 @@ public final class DuplicateFinder {
                 if (next == null)
                     throw new NoSuchElementException();
                 T value = next.element();
-                next = readNext(ois);
+                next = safeReadNext(ois);
                 if (next == null)
                     cleanup();
                 return value;
+            }
+
+            private IndexedElement<T> safeReadNext(ObjectInputStream in) {
+                try {
+                    return readNext(in);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
             }
 
             private void cleanup() {
@@ -329,15 +337,13 @@ public final class DuplicateFinder {
     }
 
     @SuppressWarnings("unchecked")
-    private static <T> T readNext(ObjectInputStream ois) {
+    private static <T> T readNext(ObjectInputStream ois) throws IOException {
         try {
             return (T) ois.readObject();
         } catch (EOFException e) {
             return null;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
         } catch (ClassNotFoundException e) {
-            throw new RuntimeException("Deserialization error", e);
+            throw new IOException("Deserialization error – class not found", e);
         }
     }
 
