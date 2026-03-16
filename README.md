@@ -12,21 +12,21 @@ DuplicateFinder.findDuplicates(stream, maxElementsInMemory);
 
 ## How It Works
 
-1. **Hash partition** the stream into 16 disk files by `hashCode()`. Each record stores `(globalIndex, element)`.
-2. **For each partition**: if it fits in memory, load into a `HashMap` and detect duplicates. If too large, **recursively sub-partition** with a level-mixed hash (up to 8 levels deep).
-3. **External merge sort** the collected duplicate records by global index using `ExternalSorter`.
-4. **Stream** the sorted results, cleaning up temp files on completion.
+1. **Hash partition** the stream into 1024 disk files by `hashCode()`. Each record stores `(globalIndex, element)`.
+2. **For each partition**: if it fits in memory (`≤ maxElementsInMemory`), load into a `HashMap` and detect duplicates in a single pass. If too large, **recursively sub-partition** with a level-mixed hash (up to 8 levels deep).
+3. **External merge sort** the collected duplicate records by global index using `ExternalSorter` (sorted runs + k-way merge).
+4. **Stream** the sorted results lazily, cleaning up temp files on completion or on exception.
 
 ```mermaid
 flowchart TD
-    A["Stream of elements"] --> B["Phase 1: Hash-partition\nto 16 disk files"]
+    A["Stream of elements"] --> B["Phase 1: Hash-partition to 1024 disk files"]
     B --> C{"Phase 2: For each partition"}
-    C -- "Fits in memory" --> D["Load into HashMap\nDetect duplicates"]
-    C -- "Too large" --> E["Recursively\nsub-partition"]
+    C -- "≤ maxElementsInMemory" --> D["Single-pass HashMap detect duplicates"]
+    C -- "Too large" --> E["Recursively sub-partition"]
     E --> C
-    D --> F["Write duplicates to file\nwith global index"]
-    F --> G["Phase 3: External\nmerge sort by index"]
-    G --> H["Phase 4: Stream\nsorted results"]
+    D --> F["Write duplicate + globalIndex to duplicates file"]
+    F --> G["Phase 3: External merge sort by globalIndex"]
+    G --> H["Phase 4: Stream sorted results (cleanup on close or exception)"]
 ```
 
 ## Memory Guarantees
@@ -59,8 +59,8 @@ Stream<String> result = DuplicateFinder.findDuplicates(stream, 100_000);
 ## Design Decisions
 
 - **No third-party libraries** in main code.
-- **Recursive hash partitioning** guarantees bounded memory regardless of input size.
+- **Recursive hash partitioning** (1024 buckets, up to 8 levels) guarantees bounded memory regardless of input size.
 - **External merge sort** avoids loading all duplicates into memory for ordering.
 - **Temp files** are cleaned up on stream consumption and on exceptions.
 - **`maxElementsInMemory`** is a count of elements, not bytes. If elements vary significantly in size, use a smaller value to stay within your memory budget.
-- **`BloomFilter`** is retained as a utility class but not used in the main algorithm, partitioning handles everything without probabilistic tradeoffs.
+- **`BloomFilter`** is retained as a utility class but not used in the main algorithm - partitioning handles everything without probabilistic tradeoffs.
